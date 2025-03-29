@@ -19,11 +19,11 @@ func ResolveURL(c *fiber.Ctx) error {
 	value, err := r.Get(database.Ctx, url).Result()
 	if err == redis.Nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":"short not found in the database"
+			"error": "short not found on database",
 		})
 	} else if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":"cannot connect to DB"
+			"error": "cannot connect to DB",
 		})
 	}
 	// increment the counter
