@@ -27,14 +27,19 @@ type response struct {
 	XrateLimitReset time.Duration `json:"rate_limit_reset"`
 }
 
+// ShortenURL ...
 func ShortenURL(c *fiber.Ctx) error {
 	body := new(request)
-
+	// check for the incoming request body
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse JSON"})
 	}
 
-	//implement rate limiting
+	// implement rate limiting
+	// everytime a user queries, check if the IP is already in database,
+	// if yes, decrement the calls remaining by one, else add the IP to database
+	// with expiry of `30mins`. So in this case the user will be able to send 10
+	// requests every 30 minutes
 	r2 := database.CreateClient(1)
 	defer r2.Close()
 	val, err := r2.Get(database.Ctx, c.IP()).Result()
@@ -71,6 +76,11 @@ func ShortenURL(c *fiber.Ctx) error {
 	// all url will be converted to https before storing in database
 	body.URL = helpers.EnforceHTTP(body.URL)
 
+	// check if the user has provided any custom dhort urls
+	// if yes, proceed,
+	// else, create a new short using the first 6 digits of uuid
+	// haven't performed any collision checks on this
+	// you can create one for your own
 	var id string
 
 	if body.CustomShort == "" {
@@ -83,6 +93,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	defer r1.Close()
 
 	val, _ = r1.Get(database.Ctx, id).Result()
+	// check if the user provided short is already in use
 	if val != "" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "custom short is already in use",
@@ -90,7 +101,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	}
 
 	if body.Expiry == 0 {
-		body.Expiry = 24
+		body.Expiry = 24	// default expiry of 24 hours
 	}
 
 	err = r1.Set(database.Ctx, id, body.URL, body.Expiry*3600*time.Second).Err()
@@ -101,6 +112,7 @@ func ShortenURL(c *fiber.Ctx) error {
 		})
 	} 
 
+	// respond with the url, short, expiry in hours, calls remaining and time to reset	
 	resp := response{
 		URL:  				body.URL,
 		CustomShort:		"",		
